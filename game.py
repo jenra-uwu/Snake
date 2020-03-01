@@ -1,7 +1,15 @@
+##
+## Snake
+## game.py: Implements the main game logic.
+##
+## jenra
+## June 19 2018
+##
+
 from random import randint, choice
 
 
-def update_coördinates(direction, x, y, width, height, undo=False):
+def update_coordinates(direction, x, y, width, height, undo=False):
 	x += ((1 if direction & 1 else -1) if ~direction & 2 else 0) * (-1 if undo else 1)
 	y += ((1 if direction & 1 else -1) if  direction & 2 else 0) * (-1 if undo else 1)
 
@@ -54,7 +62,7 @@ class Snake:
 
 	def update_position(self, width, height):
 		if self.moving:
-			self.x, self.y = update_coördinates(self.direction, self.x, self.y, width, height)
+			self.x, self.y = update_coordinates(self.direction, self.x, self.y, width, height)
 			self.prev_dirs = [self.direction] + self.prev_dirs[:-1]
 			self.kp = False
 
@@ -64,33 +72,37 @@ class Snake:
 		valid_dirs = []
 
 		for dir in dirs:
-			x, y = update_coördinates(dir, self.x, self.y, world.width, world.height)
+			x, y = update_coordinates(dir, self.x, self.y, world.width, world.height)
 			if world.blocks[x][y] == 2:
 				self.direction = dir
 				return
 			elif world.blocks[x][y] != 1:
 				valid_dirs += [dir]
 			else:
-				fx, fy = update_coördinates(self.prev_dirs[-1], x, y, world.width, world.height, undo=True)
-				ox, oy = update_coördinates((1+2+3) - reverse(self.prev_dirs[-1]) - self.direction - dir, x, y, world.width, world.height, undo=True)
+				fx, fy = update_coordinates(self.prev_dirs[-1], x, y, world.width, world.height, undo=True)
+				ox, oy = update_coordinates((1+2+3) - reverse(self.prev_dirs[-1]) - self.direction - dir, x, y, world.width, world.height, undo=True)
 				if world.blocks[fx][fy] != 1 and world.blocks[ox][oy] != 1:
 					valid_dirs += [dir]
 
 		if valid_dirs:
-			x_dist = world.pellet[0] - self.x
-			y_dist = world.pellet[1] - self.y
-			if x_dist < -world.width / 2 or x_dist > world.width / 2:
-				x_dist = -x_dist
-			if y_dist < -world.height / 2 or y_dist > world.height / 2:
-				y_dist = -y_dist
-			x_dir = 0 if x_dist < 0 else 1 if x_dist else -1
-			y_dir = 2 if y_dist < 0 else 3 if y_dist else -1
-			if y_dir in valid_dirs:
-				self.direction = y_dir
-			elif x_dir in valid_dirs:
-				self.direction = x_dir
-			else:
+			dists = [None, None, None, None]
+			for dir in range(4):
+				x, y = update_coordinates(dir, self.x, self.y, world.width, world.height)
+				dist = 1
+				while world.blocks[x][y] == 0 and x != world.pellet[0] and y != world.pellet[1]:
+					x, y = update_coordinates(dir, x, y, world.width, world.height)
+					dist += 1
+				if world.blocks[x][y] == 0 or world.blocks[x][y] == 2:
+					dists[dir] = dist
+			allowed = []
+			for dir in range(4):
+				if dists[dir]:
+					allowed += [dir]
+			allowed = sorted(allowed, key=lambda x: dists[x])
+			if not allowed:
 				self.direction = choice(valid_dirs)
+			elif not self.direction in allowed:
+				self.direction = allowed[0]
 		elif self.debug:
 			self.moving = False
 
@@ -113,33 +125,36 @@ class World:
 		self.snake = Snake(0, 0, use_ai)
 		self.pellet = [randint(0, self.width - 1), randint(0, self.height - 1)]
 
-	def tick(self):
-		self.snake.tick(self)
-
-		self.blocks = [[0 for _ in range(self.height)] for _ in range(self.width)]
-		self.blocks[self.pellet[0]][self.pellet[1]] = 2
-
-		x = self.snake.x
-		y = self.snake.y
+	def snake_block_update(self, snake):
+		x = snake.x
+		y = snake.y
 		if self.blocks[x][y] == 2:
-			self.snake.prev_dirs += self.snake.prev_dirs[-1:]
+			snake.prev_dirs += snake.prev_dirs[-1:]
 			while True:
 				self.pellet = [randint(0, self.width - 1), randint(0, self.height - 1)]
 				if self.blocks[self.pellet[0]][self.pellet[1]] == 0:
 					break
 
 		first = True
-		for d in self.snake.prev_dirs:
-			if not self.snake.moving and not self.snake.dead and first:
+		for d in snake.prev_dirs:
+			if not snake.moving and not snake.dead and first:
 				self.blocks[x][y] = 4
 				first = False
 			elif self.blocks[x][y] == 1:
 				self.blocks[x][y] = 3
-				self.snake.dead = True
-				self.snake.moving = False
+				snake.dead = True
+				snake.moving = False
 			elif self.blocks[x][y] != 3:
 				self.blocks[x][y] = 1
-			x, y = update_coördinates(d, x, y, self.width, self.height, undo=True)
+			x, y = update_coordinates(d, x, y, self.width, self.height, undo=True)
+
+	def tick(self):
+		self.snake.tick(self)
+
+		self.blocks = [[0 for _ in range(self.height)] for _ in range(self.width)]
+		self.blocks[self.pellet[0]][self.pellet[1]] = 2
+
+		self.snake_block_update(self.snake)
 
 	def render(self, canvas):
 		for x in range(0, self.width):

@@ -1,3 +1,11 @@
+##
+## Snake
+## gui.py: Runs the game and implements the gui.
+##
+## jenra
+## June 19 2018
+##
+
 from tkinter import *
 from game import *
 
